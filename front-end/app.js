@@ -114,6 +114,12 @@ function setMode(mode) {
     document.getElementById('record-section').style.display = mode === 'record' ? 'block' : 'none';
     document.getElementById('mode-upload-btn').classList.toggle('active', mode === 'upload');
     document.getElementById('mode-record-btn').classList.toggle('active', mode === 'record');
+
+    if (mode === 'record') {
+        startCamera();
+    } else {
+        stopCamera();
+    }
 }
 
 // --- Upload Page: Tags ---
@@ -141,4 +147,70 @@ function renderTags() {
     container.innerHTML = currentTags.map((tag, i) => `
         <span class="tag-pill" onclick="removeTag(${i})">${tag} ×</span>
     `).join('');
+}
+
+// --- Upload Page: Camera Recording ---
+let mediaRecorder;
+let recordedChunks = [];
+let recordedBlob = null;
+let recordingStream = null;
+let recordingTimer = null;
+let recordingSeconds = 0;
+
+async function startCamera() {
+    try {
+        recordingStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        document.getElementById('preview').srcObject = recordingStream;
+    } catch (err) {
+        alert('Could not access camera. Please grant camera permission.');
+        console.error(err);
+    }
+}
+
+function stopCamera() {
+    if (recordingStream) {
+        recordingStream.getTracks().forEach(track => track.stop());
+        recordingStream = null;
+    }
+}
+
+async function toggleRecording() {
+    const btn = document.getElementById('record-btn');
+
+    if (!mediaRecorder || mediaRecorder.state === 'inactive') {
+        if (!recordingStream) await startCamera();
+        if (!recordingStream) return;
+
+        recordedChunks = [];
+        mediaRecorder = new MediaRecorder(recordingStream);
+
+        mediaRecorder.ondataavailable = (e) => {
+            if (e.data.size > 0) recordedChunks.push(e.data);
+        };
+
+        mediaRecorder.onstop = () => {
+            recordedBlob = new Blob(recordedChunks, { type: 'video/webm' });
+            const playback = document.getElementById('recorded-playback');
+            playback.src = URL.createObjectURL(recordedBlob);
+            playback.style.display = 'block';
+        };
+
+        mediaRecorder.start();
+        recordingSeconds = 0;
+        document.getElementById('record-timer').textContent = '00:00';
+        recordingTimer = setInterval(() => {
+            recordingSeconds++;
+            const m = String(Math.floor(recordingSeconds / 60)).padStart(2, '0');
+            const s = String(recordingSeconds % 60).padStart(2, '0');
+            document.getElementById('record-timer').textContent = `${m}:${s}`;
+        }, 1000);
+
+        btn.textContent = 'Stop Recording';
+        btn.classList.add('active');
+    } else {
+        mediaRecorder.stop();
+        clearInterval(recordingTimer);
+        btn.textContent = 'Start Recording';
+        btn.classList.remove('active');
+    }
 }
