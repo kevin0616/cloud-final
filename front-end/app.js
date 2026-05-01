@@ -1,8 +1,5 @@
-// ─── Cognito ──────────────
-const COGNITO_CLIENT_ID = "YOUR_CLIENT_ID";
-const COGNITO_REGION    = "us-east-1";
-const API_BASE_URL      = "https://xxxxxxxxxx.execute-api.us-east-1.amazonaws.com/v1";
-// ──────────────────────────────────────────────────
+
+const API_BASE_URL      = "https://p4v9m8o862.execute-api.us-east-1.amazonaws.com/dev";
 
 // --- Auth Guard ---
 const ID_TOKEN = localStorage.getItem('id_token');
@@ -84,12 +81,52 @@ async function handleSearch() {
 // --- Upload ---
 document.getElementById('uploadForm').onsubmit = async (e) => {
     e.preventDefault();
-    const title = document.getElementById('videoTitle').value;
-    const result = await apiRequest('/videos', 'POST', {
-        title: title,
-        s3Key: "uploads/temp-video.mp4"
-    });
-    alert("Metadata saved! Processing started.");
+
+    const title       = document.getElementById('videoTitle').value.trim();
+    const file        = document.getElementById('videoFile').files[0];
+    const submitBtn   = e.target.querySelector('button[type="submit"]');
+
+    if (!file) return alert('Please select a video file');
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Getting upload URL...';
+
+    try {
+        const presignRes = await apiRequest('/videos/upload-url', 'POST', {
+            fileName:    file.name,
+            contentType: file.type || 'video/mp4'
+        });
+
+        const { uploadUrl, s3Key } = presignRes;
+
+        submitBtn.textContent = 'Uploading video...';
+        const uploadRes = await fetch(uploadUrl, {
+            method: 'PUT',
+            headers: { 'Content-Type': file.type || 'video/mp4' },
+            body: file
+        });
+
+        if (!uploadRes.ok) throw new Error('S3 upload failed');
+
+        submitBtn.textContent = 'Saving...';
+        await apiRequest('/videos', 'POST', {
+            title:   title,
+            s3Key:   s3Key,
+            fileSize: file.size,
+            mimeType: file.type
+        });
+
+        alert('Video uploaded successfully!');
+        e.target.reset();
+        showPage('home');
+
+    } catch (err) {
+        console.error(err);
+        alert('Upload failed: ' + err.message);
+    }
+
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Publish to Feed';
 };
 
 // --- Dashboard & Timeline ---
