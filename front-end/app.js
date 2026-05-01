@@ -63,6 +63,17 @@ async function loadFeed() {
         { title: 'Reflecting on the week', date: 'Apr 23', sentiment: 'NEUTRAL', location: 'New York, USA', thumbnail: 'https://images.unsplash.com/photo-1499209974431-9dddcece7f88?w=400' }
     ];
 
+    if (mockEntries.length === 0) {
+        container.innerHTML = `
+            <div class="empty-state">
+                <h3>No entries yet</h3>
+                <p>Start your journey by creating your first journal entry.</p>
+                <button class="btn-primary" onclick="showPage('upload')" style="max-width:200px; margin-top:1rem;">Create Entry</button>
+            </div>
+        `;
+        return;
+    }
+
     container.innerHTML = mockEntries.map(entry => `
         <div class="video-card">
             <img src="${entry.thumbnail}" alt="${entry.title}" style="width:100%; height:160px; object-fit:cover; display:block;">
@@ -94,12 +105,30 @@ async function handleSearch() {
 // --- Upload ---
 document.getElementById('uploadForm').onsubmit = async (e) => {
     e.preventDefault();
-    const title = document.getElementById('videoTitle').value;
-    const result = await apiRequest('/videos', 'POST', {
-        title: title,
-        s3Key: "uploads/temp-video.mp4"
-    });
-    alert("Metadata saved! Processing started.");
+    const submitBtn = e.target.querySelector('button[type="submit"]');
+    const originalText = submitBtn.textContent;
+
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<span class="spinner"></span>Publishing...';
+
+    try {
+        const title = document.getElementById('videoTitle').value;
+        await apiRequest('/videos', 'POST', {
+            title: title,
+            s3Key: "uploads/temp-video.mp4"
+        });
+        submitBtn.textContent = 'Published!';
+        setTimeout(() => {
+            submitBtn.textContent = originalText;
+            submitBtn.disabled = false;
+        }, 2000);
+    } catch (err) {
+        submitBtn.textContent = 'Try again';
+        setTimeout(() => {
+            submitBtn.textContent = originalText;
+            submitBtn.disabled = false;
+        }, 2000);
+    }
 };
 
 // --- Dashboard & Timeline ---
