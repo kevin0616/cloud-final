@@ -94,15 +94,85 @@ document.getElementById('uploadForm').onsubmit = async (e) => {
 };
 
 // --- Dashboard & Timeline ---
+let timelineChart = null;
+
 async function loadDashboard() {
+    const mockData = [
+        { date: 'Apr 22', score: 0.65, sentiment: 'POSITIVE' },
+        { date: 'Apr 23', score: 0.42, sentiment: 'NEUTRAL' },
+        { date: 'Apr 24', score: 0.78, sentiment: 'POSITIVE' },
+        { date: 'Apr 25', score: 0.31, sentiment: 'NEGATIVE' },
+        { date: 'Apr 26', score: 0.55, sentiment: 'NEUTRAL' },
+        { date: 'Apr 27', score: 0.82, sentiment: 'POSITIVE' },
+        { date: 'Apr 28', score: 0.71, sentiment: 'POSITIVE' }
+    ];
+
     const ctx = document.getElementById('timelineCanvas').getContext('2d');
-    ctx.clearRect(0, 0, 400, 200);
-    ctx.beginPath();
-    ctx.moveTo(0, 100);
-    for (let i = 0; i < 400; i += 40) {
-        ctx.lineTo(i, 50 + Math.random() * 100);
-    }
-    ctx.stroke();
+
+    if (timelineChart) timelineChart.destroy();
+
+    timelineChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: mockData.map(d => d.date),
+            datasets: [{
+                label: 'Sentiment Score',
+                data: mockData.map(d => d.score),
+                borderColor: '#c9a96e',
+                backgroundColor: 'rgba(201, 169, 110, 0.1)',
+                tension: 0.4,
+                fill: true,
+                pointBackgroundColor: '#c9a96e',
+                pointRadius: 5,
+                pointHoverRadius: 7
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: (ctx) => `Score: ${ctx.parsed.y} (${mockData[ctx.dataIndex].sentiment})`
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    min: 0,
+                    max: 1,
+                    grid: { color: 'rgba(255,255,255,0.05)' },
+                    ticks: { color: '#888580' }
+                },
+                x: {
+                    grid: { color: 'rgba(255,255,255,0.05)' },
+                    ticks: { color: '#888580' }
+                }
+            }
+        }
+    });
+
+    loadRecentEntries();
+}
+
+function loadRecentEntries() {
+    const mockEntries = [
+        { title: 'Morning walk in Central Park', date: 'Apr 28', sentiment: 'POSITIVE', location: 'New York, USA' },
+        { title: 'Coffee at the rooftop', date: 'Apr 27', sentiment: 'POSITIVE', location: 'New York, USA' },
+        { title: 'Quiet evening journaling', date: 'Apr 26', sentiment: 'NEUTRAL', location: 'New York, USA' },
+        { title: 'Stressful day at work', date: 'Apr 25', sentiment: 'NEGATIVE', location: 'New York, USA' }
+    ];
+
+    const container = document.getElementById('recent-entries');
+    container.innerHTML = mockEntries.map(entry => `
+        <div class="entry-item">
+            <div>
+                <div class="entry-title">${entry.title}</div>
+                <div class="entry-meta">${entry.date} · ${entry.location}</div>
+            </div>
+            <span class="sentiment-badge sentiment-${entry.sentiment.toLowerCase()}">${entry.sentiment}</span>
+        </div>
+    `).join('');
 }
 
 // Initial Load

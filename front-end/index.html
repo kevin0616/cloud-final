@@ -76,23 +76,23 @@
     </section>
 
     <section id="dashboard-page" class="page" style="display:none;">
-      <h2>User Insights</h2>
-      <div class="card">
-        <h3>Emotional Health Timeline</h3>
-        <canvas id="timelineCanvas" height="150"></canvas>
-      </div>
-      <div class="card">
-        <h3>Following</h3>
-        <div id="following-list"></div>
-      </div>
-    </section>
+      <h2>Your Insights</h2>
 
-    <section id="search-page" class="page" style="display:none;">
-      <h2>Search Results</h2>
-      <div id="search-results" class="grid"></div>
+      <div class="card">
+        <h3>Emotion Timeline</h3>
+        <p style="color:var(--muted); font-size:13px; margin-bottom:1rem;">Your sentiment trends across recent journal
+          entries.</p>
+        <canvas id="timelineCanvas" height="100"></canvas>
+      </div>
+
+      <div class="card">
+        <h3>Recent Entries</h3>
+        <div id="recent-entries"></div>
+      </div>
     </section>
   </main>
 
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="app.js"></script>
 </body>
 
