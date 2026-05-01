@@ -24,6 +24,7 @@ function showPage(pageId) {
 
     if (pageId === 'home') loadFeed();
     if (pageId === 'dashboard') loadDashboard();
+    if (pageId === 'upload') detectLocation();
 }
 
 // --- API Helper ---
@@ -213,4 +214,36 @@ async function toggleRecording() {
         btn.textContent = 'Start Recording';
         btn.classList.remove('active');
     }
+}
+
+// --- Upload Page: Location ---
+function detectLocation() {
+    const input = document.getElementById('videoLocation');
+
+    if (!navigator.geolocation) {
+        input.placeholder = 'Geolocation not supported';
+        return;
+    }
+
+    input.placeholder = 'Detecting location...';
+    input.value = '';
+
+    navigator.geolocation.getCurrentPosition(
+        async (position) => {
+            const { latitude, longitude } = position.coords;
+            try {
+                const response = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`);
+                const data = await response.json();
+                const city = data.address.city || data.address.town || data.address.village || '';
+                const country = data.address.country || '';
+                input.value = city && country ? `${city}, ${country}` : data.display_name;
+            } catch (err) {
+                input.value = `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
+            }
+        },
+        (err) => {
+            input.placeholder = 'Location permission denied';
+            console.error(err);
+        }
+    );
 }

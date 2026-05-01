@@ -59,6 +59,13 @@
           <input type="text" id="videoTitle" placeholder="Give your video a title..." required>
           <textarea id="videoDesc" rows="4" placeholder="What's on your mind?"></textarea>
 
+          <label>Location</label>
+          <div style="display:flex; gap:0.5rem;">
+            <input type="text" id="videoLocation" placeholder="Detecting location..." style="flex:1;">
+            <button type="button" class="mode-btn" style="flex:0 0 auto; padding:10px 14px;"
+              onclick="detectLocation()">Detect</button>
+          </div>
+
           <label>Tags</label>
           <input type="text" id="tagInput" placeholder="Type a tag and press Enter" onkeydown="handleTagAdd(event)">
           <div id="tag-pills" class="tag-pills"></div>
