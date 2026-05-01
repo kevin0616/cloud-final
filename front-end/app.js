@@ -53,17 +53,26 @@ async function apiRequest(endpoint, method = 'GET', body = null) {
 // --- Home Feed ---
 async function loadFeed() {
     const container = document.getElementById('video-feed');
-    container.innerHTML = "Loading...";
-    try {
-        const data = await apiRequest('/feed');
-        container.innerHTML = data.videos.map(v => `
-            <div class="video-card">
-                <video src="${v.url}" controls></video>
-                <h4>${v.videoId}</h4>
-                <p>Sentiment: ${v.sentiment}</p>
+
+    const mockEntries = [
+        { title: 'Morning walk in Central Park', date: 'Apr 28', sentiment: 'POSITIVE', location: 'New York, USA', thumbnail: 'https://images.unsplash.com/photo-1568515387631-8b650bbcdb90?w=400' },
+        { title: 'Coffee at the rooftop', date: 'Apr 27', sentiment: 'POSITIVE', location: 'New York, USA', thumbnail: 'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=400' },
+        { title: 'Quiet evening journaling', date: 'Apr 26', sentiment: 'NEUTRAL', location: 'New York, USA', thumbnail: 'https://images.unsplash.com/photo-1506784983877-45594efa4cbe?w=400' },
+        { title: 'Stressful day at work', date: 'Apr 25', sentiment: 'NEGATIVE', location: 'New York, USA', thumbnail: 'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=400' },
+        { title: 'Sunset by the river', date: 'Apr 24', sentiment: 'POSITIVE', location: 'New York, USA', thumbnail: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400' },
+        { title: 'Reflecting on the week', date: 'Apr 23', sentiment: 'NEUTRAL', location: 'New York, USA', thumbnail: 'https://images.unsplash.com/photo-1499209974431-9dddcece7f88?w=400' }
+    ];
+
+    container.innerHTML = mockEntries.map(entry => `
+        <div class="video-card">
+            <img src="${entry.thumbnail}" alt="${entry.title}" style="width:100%; height:160px; object-fit:cover; display:block;">
+            <div style="padding:12px;">
+                <h4 style="margin-bottom:6px;">${entry.title}</h4>
+                <p style="font-size:12px; color:var(--muted); margin-bottom:8px;">${entry.date} · ${entry.location}</p>
+                <span class="sentiment-badge sentiment-${entry.sentiment.toLowerCase()}">${entry.sentiment}</span>
             </div>
-        `).join('');
-    } catch (e) { container.innerHTML = "Error loading feed."; }
+        </div>
+    `).join('');
 }
 
 // --- Search ---
