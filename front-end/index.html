@@ -13,13 +13,15 @@
     <div class="logo">VideoJournal</div>
     <button onclick="showPage('home')">Home</button>
     <button onclick="showPage('upload')">Upload</button>
+    <button onclick="showPage('search')">Search</button>
     <button onclick="showPage('dashboard')">Dashboard</button>
     <button class="btn-logout" onclick="logout()">Logout</button>
   </nav>
 
   <main>
     <div class="search-container">
-      <input type="text" id="globalSearch" placeholder="Search by labels, titles...">
+      <input type="text" id="globalSearch" placeholder="Search by labels, titles..."
+        onkeydown="if(event.key==='Enter') handleSearch()">
       <button class="search-btn" onclick="handleSearch()">Search</button>
     </div>
 
@@ -91,6 +93,45 @@
         <div id="recent-entries"></div>
       </div>
     </section>
+
+    <section id="search-page" class="page" style="display:none;">
+      <h2>Search</h2>
+
+      <div class="search-layout">
+        <aside class="search-filters">
+          <div class="filter-group">
+            <h3>Emotion</h3>
+            <label class="filter-checkbox"><input type="checkbox" value="POSITIVE" onchange="applyFilters()">
+              Positive</label>
+            <label class="filter-checkbox"><input type="checkbox" value="NEUTRAL" onchange="applyFilters()">
+              Neutral</label>
+            <label class="filter-checkbox"><input type="checkbox" value="NEGATIVE" onchange="applyFilters()">
+              Negative</label>
+          </div>
+
+          <div class="filter-group">
+            <h3>Location</h3>
+            <input type="text" id="filter-location" placeholder="e.g. New York" oninput="applyFilters()">
+          </div>
+
+          <div class="filter-group">
+            <h3>Date Range</h3>
+            <label class="filter-label">From</label>
+            <input type="date" id="filter-date-from" onchange="applyFilters()">
+            <label class="filter-label">To</label>
+            <input type="date" id="filter-date-to" onchange="applyFilters()">
+          </div>
+
+          <button class="filter-reset" onclick="resetFilters()">Reset filters</button>
+        </aside>
+
+        <div class="search-results-area">
+          <p id="search-summary" style="color:var(--muted); font-size:13px; margin-bottom:1rem;">Showing all entries</p>
+          <div id="search-results" class="grid"></div>
+        </div>
+      </div>
+    </section>
+
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>

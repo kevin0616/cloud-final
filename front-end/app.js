@@ -25,6 +25,7 @@ function showPage(pageId) {
     if (pageId === 'home') loadFeed();
     if (pageId === 'dashboard') loadDashboard();
     if (pageId === 'upload') detectLocation();
+    if (pageId === 'search') applyFilters();
 }
 
 // --- API Helper ---
@@ -87,19 +88,9 @@ async function loadFeed() {
 }
 
 // --- Search ---
-async function handleSearch() {
-    const q = document.getElementById('globalSearch').value;
+function handleSearch() {
     showPage('search');
-    const container = document.getElementById('search-results');
-    container.innerHTML = "Searching...";
-
-    const data = await apiRequest(`/search?q=${encodeURIComponent(q)}&type=all`);
-    container.innerHTML = data.results.map(item => `
-        <div class="video-card">
-            <h3>${item.resultType.toUpperCase()}</h3>
-            <p>${item.title || item.id}</p>
-        </div>
-    `).join('');
+    applyFilters();
 }
 
 // --- Upload ---
@@ -354,4 +345,75 @@ function detectLocation() {
             console.error(err);
         }
     );
+}
+
+// --- Search Page ---
+const searchEntries = [
+    { title: 'Morning walk in Central Park', date: '2026-04-28', sentiment: 'POSITIVE', location: 'New York, USA', thumbnail: 'https://images.unsplash.com/photo-1568515387631-8b650bbcdb90?w=400' },
+    { title: 'Coffee at the rooftop', date: '2026-04-27', sentiment: 'POSITIVE', location: 'New York, USA', thumbnail: 'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=400' },
+    { title: 'Quiet evening journaling', date: '2026-04-26', sentiment: 'NEUTRAL', location: 'New York, USA', thumbnail: 'https://images.unsplash.com/photo-1506784983877-45594efa4cbe?w=400' },
+    { title: 'Stressful day at work', date: '2026-04-25', sentiment: 'NEGATIVE', location: 'New York, USA', thumbnail: 'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=400' },
+    { title: 'Sunset in Tokyo', date: '2026-04-15', sentiment: 'POSITIVE', location: 'Tokyo, Japan', thumbnail: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400' },
+    { title: 'Lost in Shibuya', date: '2026-04-14', sentiment: 'NEUTRAL', location: 'Tokyo, Japan', thumbnail: 'https://images.unsplash.com/photo-1499209974431-9dddcece7f88?w=400' }
+];
+
+function applyFilters() {
+    const query = document.getElementById('globalSearch').value.toLowerCase().trim();
+    const selectedEmotions = Array.from(document.querySelectorAll('.search-filters input[type="checkbox"]:checked')).map(c => c.value);
+    const locationFilter = document.getElementById('filter-location').value.toLowerCase().trim();
+    const dateFrom = document.getElementById('filter-date-from').value;
+    const dateTo = document.getElementById('filter-date-to').value;
+
+    let results = searchEntries.filter(entry => {
+        if (query && !entry.title.toLowerCase().includes(query)) return false;
+        if (selectedEmotions.length > 0 && !selectedEmotions.includes(entry.sentiment)) return false;
+        if (locationFilter && !entry.location.toLowerCase().includes(locationFilter)) return false;
+        if (dateFrom && entry.date < dateFrom) return false;
+        if (dateTo && entry.date > dateTo) return false;
+        return true;
+    });
+
+    renderSearchResults(results);
+}
+
+function renderSearchResults(results) {
+    const container = document.getElementById('search-results');
+    const summary = document.getElementById('search-summary');
+
+    if (results.length === 0) {
+        summary.textContent = 'No entries match your filters';
+        container.innerHTML = `
+            <div class="empty-state">
+                <h3>Nothing found</h3>
+                <p>Try adjusting your filters or search terms.</p>
+            </div>
+        `;
+        return;
+    }
+
+    summary.textContent = `Showing ${results.length} ${results.length === 1 ? 'entry' : 'entries'}`;
+    container.innerHTML = results.map(entry => `
+        <div class="video-card">
+            <img src="${entry.thumbnail}" alt="${entry.title}" style="width:100%; height:160px; object-fit:cover; display:block;">
+            <div style="padding:12px;">
+                <h4 style="margin-bottom:6px;">${entry.title}</h4>
+                <p style="font-size:12px; color:var(--muted); margin-bottom:8px;">${formatDate(entry.date)} · ${entry.location}</p>
+                <span class="sentiment-badge sentiment-${entry.sentiment.toLowerCase()}">${entry.sentiment}</span>
+            </div>
+        </div>
+    `).join('');
+}
+
+function formatDate(isoDate) {
+    const d = new Date(isoDate);
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+function resetFilters() {
+    document.querySelectorAll('.search-filters input[type="checkbox"]').forEach(c => c.checked = false);
+    document.getElementById('filter-location').value = '';
+    document.getElementById('filter-date-from').value = '';
+    document.getElementById('filter-date-to').value = '';
+    document.getElementById('globalSearch').value = '';
+    applyFilters();
 }
