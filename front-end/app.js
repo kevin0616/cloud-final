@@ -1,7 +1,7 @@
 // ─── Cognito ──────────────
 const COGNITO_CLIENT_ID = "YOUR_CLIENT_ID";
-const COGNITO_REGION    = "us-east-1";
-const API_BASE_URL      = "https://xxxxxxxxxx.execute-api.us-east-1.amazonaws.com/v1";
+const COGNITO_REGION = "us-east-1";
+const API_BASE_URL = "https://xxxxxxxxxx.execute-api.us-east-1.amazonaws.com/v1";
 // ──────────────────────────────────────────────────
 
 // --- Auth Guard ---
@@ -21,7 +21,7 @@ function logout() {
 function showPage(pageId) {
     document.querySelectorAll('.page').forEach(p => p.style.display = 'none');
     document.getElementById(`${pageId}-page`).style.display = 'block';
-    
+
     if (pageId === 'home') loadFeed();
     if (pageId === 'dashboard') loadDashboard();
 }
@@ -71,7 +71,7 @@ async function handleSearch() {
     showPage('search');
     const container = document.getElementById('search-results');
     container.innerHTML = "Searching...";
-    
+
     const data = await apiRequest(`/search?q=${encodeURIComponent(q)}&type=all`);
     container.innerHTML = data.results.map(item => `
         <div class="video-card">
@@ -98,7 +98,7 @@ async function loadDashboard() {
     ctx.clearRect(0, 0, 400, 200);
     ctx.beginPath();
     ctx.moveTo(0, 100);
-    for(let i = 0; i < 400; i += 40) {
+    for (let i = 0; i < 400; i += 40) {
         ctx.lineTo(i, 50 + Math.random() * 100);
     }
     ctx.stroke();
@@ -106,3 +106,39 @@ async function loadDashboard() {
 
 // Initial Load
 showPage('home');
+
+
+// --- Upload Page: Mode Toggle ---
+function setMode(mode) {
+    document.getElementById('upload-section').style.display = mode === 'upload' ? 'block' : 'none';
+    document.getElementById('record-section').style.display = mode === 'record' ? 'block' : 'none';
+    document.getElementById('mode-upload-btn').classList.toggle('active', mode === 'upload');
+    document.getElementById('mode-record-btn').classList.toggle('active', mode === 'record');
+}
+
+// --- Upload Page: Tags ---
+let currentTags = [];
+
+function handleTagAdd(e) {
+    if ((e.key === 'Enter' || e.key === ',') && e.target.value.trim()) {
+        e.preventDefault();
+        const newTag = e.target.value.replace(/,$/, '').trim();
+        if (newTag && !currentTags.includes(newTag) && currentTags.length < 6) {
+            currentTags.push(newTag);
+            e.target.value = '';
+            renderTags();
+        }
+    }
+}
+
+function removeTag(index) {
+    currentTags.splice(index, 1);
+    renderTags();
+}
+
+function renderTags() {
+    const container = document.getElementById('tag-pills');
+    container.innerHTML = currentTags.map((tag, i) => `
+        <span class="tag-pill" onclick="removeTag(${i})">${tag} ×</span>
+    `).join('');
+}

@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>VideoJournal</title>
   <link rel="stylesheet" href="style.css">
 </head>
+
 <body>
   <nav>
     <div class="logo">VideoJournal</div>
@@ -29,11 +31,32 @@
     <section id="upload-page" class="page" style="display:none;">
       <h2>Create New Journal</h2>
       <div class="card">
+        <div class="mode-toggle">
+          <button type="button" id="mode-upload-btn" class="mode-btn active" onclick="setMode('upload')">Upload
+            File</button>
+          <button type="button" id="mode-record-btn" class="mode-btn" onclick="setMode('record')">Record Video</button>
+        </div>
+
         <form id="uploadForm">
+          <div id="upload-section">
+            <label>Select Video File:</label>
+            <input type="file" id="videoFile" accept="video/*">
+          </div>
+
+          <div id="record-section" style="display:none;">
+            <p
+              style="color:var(--muted); padding:2rem; text-align:center; background:var(--bg); border:0.5px dashed var(--border); border-radius:var(--radius);">
+              Camera recording coming soon
+            </p>
+          </div>
+
           <input type="text" id="videoTitle" placeholder="Give your video a title..." required>
           <textarea id="videoDesc" rows="4" placeholder="What's on your mind?"></textarea>
-          <label>Select Video File:</label>
-          <input type="file" id="videoFile" accept="video/*" required>
+
+          <label>Tags</label>
+          <input type="text" id="tagInput" placeholder="Type a tag and press Enter" onkeydown="handleTagAdd(event)">
+          <div id="tag-pills" class="tag-pills"></div>
+
           <button type="submit">Publish to Feed</button>
         </form>
       </div>
@@ -59,4 +82,5 @@
 
   <script src="app.js"></script>
 </body>
+
 </html>
