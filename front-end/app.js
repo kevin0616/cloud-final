@@ -110,6 +110,9 @@ document.getElementById('uploadForm').onsubmit = async (e) => {
         });
         submitBtn.textContent = 'Published!';
         setTimeout(() => {
+            document.getElementById('uploadForm').reset();
+            currentTags = [];
+            renderTags();
             submitBtn.textContent = originalText;
             submitBtn.disabled = false;
         }, 2000);
