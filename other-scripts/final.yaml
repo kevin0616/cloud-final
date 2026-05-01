@@ -1,0 +1,196 @@
+swagger: '2.0'
+info:
+  title: Video Journaling & Social API
+  description: 'AI-powered video platform with emotion tracking, global search, and social features.'
+  version: 1.0.0
+schemes:
+  - https
+basePath: /v1
+produces:
+  - application/json
+
+paths:
+  # --- Discovery & Search (Handled by Content Discovery Lambda) ---
+  /search:
+    get:
+      summary: Global search method
+      operationId: searchGlobal
+      parameters:
+        - name: q
+          in: query
+          required: true
+          type: string
+          description: Search keywords for videos or users
+        - name: type
+          in: query
+          type: string
+          enum: [all, video, user]
+          default: all
+      responses:
+        '200':
+          description: OK
+          schema:
+            $ref: '#/definitions/SearchResponse'
+        '400':
+          $ref: '#/definitions/Error'
+        '500':
+          $ref: '#/definitions/Error'
+
+  /feed:
+    get:
+      summary: Personalized feed method
+      operationId: getFeed
+      description: Get videos from followed users
+      responses:
+        '200':
+          description: OK
+          schema:
+            $ref: '#/definitions/FeedResponse'
+
+  # --- Video Management (Handled by Video/Upload Lambda) ---
+  /videos:
+    post:
+      summary: Post video metadata method
+      description: Register a new video after S3 upload
+      operationId: postVideo
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/PostVideoRequest'
+      responses:
+        '201':
+          description: Created
+        '400':
+          $ref: '#/definitions/Error'
+
+  # --- Analytics (Handled by Analytics Lambda) ---
+  /analysis/{userId}:
+    get:
+      summary: Emotion timeline method
+      operationId: getEmotionTimeline
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          type: string
+      responses:
+        '200':
+          description: OK
+          schema:
+            $ref: '#/definitions/EmotionTimeline'
+
+  # --- Social (Handled by Social Manager Lambda) ---
+  /following:
+    post:
+      summary: Follow a user
+      operationId: followUser
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            type: object
+            required: [targetUserId]
+            properties:
+              targetUserId:
+                type: string
+      responses:
+        '200':
+          description: Successfully followed
+        '400':
+          $ref: '#/definitions/Error'
+
+  /following/{targetUserId}:
+    delete:
+      summary: Unfollow a user
+      operationId: unfollowUser
+      parameters:
+        - name: targetUserId
+          in: path
+          required: true
+          type: string
+      responses:
+        '200':
+          description: Successfully unfollowed
+        '404':
+          description: Relationship not found
+definitions:
+  # --- Discovery Schemas ---
+  SearchResponse:
+    type: object
+    properties:
+      results:
+        type: array
+        items:
+          $ref: '#/definitions/SearchResultItem'
+  
+  SearchResultItem:
+    type: object
+    properties:
+      resultType: { type: string, enum: [video, user] }
+      id: { type: string }
+      title: { type: string }
+      imageUrl: { type: string }
+
+  FeedResponse:
+    type: object
+    properties:
+      videos:
+        type: array
+        items:
+          $ref: '#/definitions/Video'
+      message: { type: string }
+
+  # --- Video Schemas ---
+  PostVideoRequest:
+    type: object
+    required: [title, s3Key]
+    properties:
+      title: { type: string }
+      description: { type: string }
+      s3Key: { type: string }
+
+  Video:
+    type: object
+    properties:
+      videoId: { type: string }
+      userId: { type: string }
+      url: { type: string }
+      createdAt: { type: string }
+      sentiment: { type: string }
+
+  # --- Analytics Schemas ---
+  EmotionTimeline:
+    type: object
+    properties:
+      userId: { type: string }
+      dataPoints:
+        type: array
+        items:
+          type: object
+          properties:
+            timestamp: { type: string }
+            sentiment: { type: string }
+            score: { type: number }
+
+  # --- Error Schema ---
+  Error:
+    type: object
+    properties:
+      code: { type: integer, format: int32 }
+      message: { type: string }
+
+securityDefinitions:
+  CognitoAuthorizer:
+    type: apiKey
+    name: Authorization
+    in: header
+    x-amazon-apigateway-authtype: cognito_user_pools
+    x-amazon-apigateway-authorizer:
+      providerARNs:
+        - arn:aws:cognito-idp:us-east-1:725740881371:userpool/us-east-1_lHFJy8rNF
+
+security:
+  - CognitoAuthorizer: []

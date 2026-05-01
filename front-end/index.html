@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VideoJournal</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <nav>
+    <div class="logo">VideoJournal</div>
+    <button onclick="showPage('home')">Home</button>
+    <button onclick="showPage('upload')">Upload</button>
+    <button onclick="showPage('dashboard')">Dashboard</button>
+    <button class="btn-logout" onclick="logout()">Logout</button>
+  </nav>
+
+  <main>
+    <div class="search-container">
+      <input type="text" id="globalSearch" placeholder="Search by labels, titles...">
+      <button class="search-btn" onclick="handleSearch()">Search</button>
+    </div>
+
+    <section id="home-page" class="page">
+      <h2>Recommended for you</h2>
+      <div id="video-feed" class="grid"></div>
+    </section>
+
+    <section id="upload-page" class="page" style="display:none;">
+      <h2>Create New Journal</h2>
+      <div class="card">
+        <form id="uploadForm">
+          <input type="text" id="videoTitle" placeholder="Give your video a title..." required>
+          <textarea id="videoDesc" rows="4" placeholder="What's on your mind?"></textarea>
+          <label>Select Video File:</label>
+          <input type="file" id="videoFile" accept="video/*" required>
+          <button type="submit">Publish to Feed</button>
+        </form>
+      </div>
+    </section>
+
+    <section id="dashboard-page" class="page" style="display:none;">
+      <h2>User Insights</h2>
+      <div class="card">
+        <h3>Emotional Health Timeline</h3>
+        <canvas id="timelineCanvas" height="150"></canvas>
+      </div>
+      <div class="card">
+        <h3>Following</h3>
+        <div id="following-list"></div>
+      </div>
+    </section>
+
+    <section id="search-page" class="page" style="display:none;">
+      <h2>Search Results</h2>
+      <div id="search-results" class="grid"></div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

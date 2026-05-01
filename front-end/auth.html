@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VideoJournal — Sign In</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body style="display:flex; align-items:center; justify-content:center; min-height:100vh;">
+
+  <div class="auth-wrap">
+    <div class="brand">
+      <div class="brand-name">VideoJournal</div>
+      <div class="brand-sub">Document every moment</div>
+    </div>
+
+    <div class="card">
+      <div class="tab-row">
+        <button class="tab active" onclick="switchTab('login')">Sign In</button>
+        <button class="tab" onclick="switchTab('register')">Sign Up</button>
+      </div>
+
+      <!-- Login -->
+      <div id="login-form">
+        <div class="field">
+          <label>Email</label>
+          <input type="email" id="login-email" placeholder="you@example.com" autocomplete="email" />
+        </div>
+        <div class="field">
+          <label>Password</label>
+          <input type="password" id="login-password" placeholder="••••••••"
+                 autocomplete="current-password"
+                 onkeydown="if(event.key==='Enter') handleLogin()" />
+        </div>
+        <button class="btn-primary" id="login-btn" onclick="handleLogin()">Sign In</button>
+        <div class="msg" id="login-msg"></div>
+      </div>
+
+      <!-- Register -->
+      <div id="register-form" style="display:none;">
+        <div class="field">
+          <label>Email</label>
+          <input type="email" id="reg-email" placeholder="you@example.com" autocomplete="email" />
+        </div>
+        <div class="field">
+            <label>Username</label>
+            <input type="text" id="reg-username" placeholder="Pick a username" autocomplete="username" />
+        </div>
+        <div class="field">
+          <label>Password</label>
+          <input type="password" id="reg-password" placeholder="Min. 8 characters with uppercase, lowercase & number"
+                 autocomplete="new-password" oninput="updateStrength(this.value)" />
+          <div class="strength-bar"><div class="strength-fill" id="strength-fill"></div></div>
+        </div>
+        <button class="btn-primary" id="reg-btn" onclick="handleRegister()">Create Account</button>
+        <div class="msg" id="reg-msg"></div>
+      </div>
+
+      <!-- Verify -->
+      <div id="verify-form" style="display:none;">
+        <p style="font-size:13px; color:var(--muted); margin-bottom:1.25rem; line-height:1.6;">
+          A verification code has been sent to <strong id="verify-email-display" style="color:var(--text);"></strong>. Please check your email.
+        </p>
+        <div class="field">
+          <label>Verification Code</label>
+          <input type="text" id="verify-code" placeholder="000000" maxlength="6"
+                 inputmode="numeric"
+                 style="text-align:center; letter-spacing:10px; font-size:22px;"
+                 onkeydown="if(event.key==='Enter') handleVerify()" />
+        </div>
+        <button class="btn-primary" onclick="handleVerify()">Verify</button>
+        <p class="verify-hint">Didn't receive it? <span onclick="resendCode()">Resend code</span></p>
+        <div class="msg" id="verify-msg"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const COGNITO_CLIENT_ID = "7qmdfihlqmusc0maifhif85j89";
+    const COGNITO_REGION    = "us-east-1";
+
+    const API_URL = `https://cognito-idp.${COGNITO_REGION}.amazonaws.com/`;
+    let pendingEmail = "";
+    let pendingUsername = "";
+
+    function switchTab(tab) {
+      document.querySelectorAll('.tab').forEach((t, i) =>
+        t.classList.toggle('active', (tab === 'login' ? 0 : 1) === i));
+      document.getElementById('login-form').style.display    = tab === 'login' ? 'block' : 'none';
+      document.getElementById('register-form').style.display = tab === 'register' ? 'block' : 'none';
+      document.getElementById('verify-form').style.display   = 'none';
+      document.querySelectorAll('.msg').forEach(m => m.style.display = 'none');
+    }
+
+    function showMsg(id, type, text) {
+      const el = document.getElementById(id);
+      el.className = `msg ${type}`;
+      el.textContent = text;
+      el.style.display = 'block';
+    }
+
+    function setLoading(btnId, loading, label) {
+      const btn = document.getElementById(btnId);
+      btn.disabled = loading;
+      btn.innerHTML = loading ? `<span class="spinner"></span>${label}` : label;
+    }
+
+    function updateStrength(pw) {
+      const fill = document.getElementById('strength-fill');
+      let score = 0;
+      if (pw.length >= 8)          score++;
+      if (/[A-Z]/.test(pw))        score++;
+      if (/[a-z]/.test(pw))        score++;
+      if (/[0-9]/.test(pw))        score++;
+      if (/[^A-Za-z0-9]/.test(pw)) score++;
+      fill.style.width = (score / 5 * 100) + '%';
+      fill.style.background = ['#e05c5c','#e0945c','#c9a96e','#5cb88a','#5cb88a'][score - 1] || 'transparent';
+    }
+
+    async function cognitoRequest(target, payload) {
+      const res = await fetch(API_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-amz-json-1.1',
+          'X-Amz-Target': target
+        },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (!res.ok) throw data;
+      return data;
+    }
+
+    async function handleLogin() {
+      const email    = document.getElementById('login-email').value.trim();
+      const password = document.getElementById('login-password').value;
+      if (!email || !password) return showMsg('login-msg', 'error', 'Please fill in all fields');
+      setLoading('login-btn', true, 'Signing in...');
+      try {
+        const data = await cognitoRequest(
+          'AWSCognitoIdentityProviderService.InitiateAuth',
+          { AuthFlow: 'USER_PASSWORD_AUTH', ClientId: COGNITO_CLIENT_ID,
+            AuthParameters: { USERNAME: email, PASSWORD: password } }
+        );
+        localStorage.setItem('id_token', data.AuthenticationResult.IdToken);
+        localStorage.setItem('email', email);
+        showMsg('login-msg', 'success', 'Signed in! Redirecting...');
+        setTimeout(() => window.location.href = 'index.html', 800);
+      } catch (e) {
+        const msgs = {
+          NotAuthorizedException:    'Incorrect email or password',
+          UserNotFoundException:     'No account found with this email',
+          UserNotConfirmedException: 'Account not verified. Please check your email for a verification code',
+        };
+        showMsg('login-msg', 'error', msgs[e.__type] || e.message || 'Sign in failed, please try again');
+      }
+      setLoading('login-btn', false, 'Sign In');
+    }
+
+    async function handleRegister() {
+        const username = document.getElementById('reg-username').value.trim();
+        const email    = document.getElementById('reg-email').value.trim();
+        const password = document.getElementById('reg-password').value;
+
+        if (!username || !email || !password) return showMsg('reg-msg', 'error', 'Please fill in all fields');
+        if (password.length < 8) return showMsg('reg-msg', 'error', 'Password must be at least 8 characters');
+
+        setLoading('reg-btn', true, 'Creating account...');
+        try {
+            await cognitoRequest(
+            'AWSCognitoIdentityProviderService.SignUp',
+            { ClientId: COGNITO_CLIENT_ID, Username: username, Password: password,
+                UserAttributes: [{ Name: 'email', Value: email }] }
+            );
+            pendingEmail = email;
+            pendingUsername = username;
+            document.getElementById('verify-email-display').textContent = email;
+            document.getElementById('register-form').style.display = 'none';
+            document.getElementById('verify-form').style.display   = 'block';
+        } catch (e) {
+            const msgs = {
+            UsernameExistsException:   'Username already taken, please choose another',
+            InvalidPasswordException:  'Password must include uppercase, lowercase letters and numbers',
+            InvalidParameterException: e.message,
+            };
+            showMsg('reg-msg', 'error', msgs[e.__type] || e.message || 'Registration failed, please try again');
+        }
+        setLoading('reg-btn', false, 'Create Account');
+    }
+
+    async function handleVerify() {
+      const code = document.getElementById('verify-code').value.trim();
+      if (!code) return showMsg('verify-msg', 'error', 'Please enter the verification code');
+      try {
+        await cognitoRequest(
+          'AWSCognitoIdentityProviderService.ConfirmSignUp',
+          { ClientId: COGNITO_CLIENT_ID, Username: pendingUsername, ConfirmationCode: code }
+        );
+        showMsg('verify-msg', 'success', 'Verified! Redirecting to sign in...');
+        setTimeout(() => {
+          document.getElementById('verify-form').style.display  = 'none';
+          document.getElementById('login-form').style.display   = 'block';
+          document.querySelectorAll('.tab').forEach((t, i) => t.classList.toggle('active', i === 0));
+          document.getElementById('login-email').value = pendingEmail;
+        }, 1200);
+      } catch (e) {
+        const msgs = {
+          CodeMismatchException: 'Incorrect verification code, please try again',
+          ExpiredCodeException:  'Code has expired, please request a new one',
+        };
+        showMsg('verify-msg', 'error', msgs[e.__type] || 'Verification failed');
+      }
+    }
+
+    async function resendCode() {
+      if (!pendingEmail) return;
+      try {
+        await cognitoRequest(
+          'AWSCognitoIdentityProviderService.ResendConfirmationCode',
+          { ClientId: COGNITO_CLIENT_ID, Username: pendingUsername }
+        );
+        showMsg('verify-msg', 'success', 'A new code has been sent, please check your email');
+      } catch (e) {
+        showMsg('verify-msg', 'error', 'Failed to resend, please try again later');
+      }
+    }
+  </script>
+</body>
+</html>
