@@ -1,4 +1,5 @@
 const API_BASE_URL      = "https://p4v9m8o862.execute-api.us-east-1.amazonaws.com/dev";
+const VIDEO_BUCKET_URL = 'https://amzn-storage-bucket-final.s3.us-east-1.amazonaws.com';
 
 // --- Auth Guard ---
 const ID_TOKEN = localStorage.getItem('id_token');
@@ -49,38 +50,79 @@ async function apiRequest(endpoint, method = 'GET', body = null) {
 
 // --- Home Feed ---
 async function loadFeed() {
-    const container = document.getElementById('video-feed');
+    try {
+        const data = await apiRequest('/feed', 'GET');
 
-    const mockEntries = [
-        { title: 'Morning walk in Central Park', date: 'Apr 28', sentiment: 'POSITIVE', location: 'New York, USA', thumbnail: 'https://images.unsplash.com/photo-1568515387631-8b650bbcdb90?w=400' },
-        { title: 'Coffee at the rooftop', date: 'Apr 27', sentiment: 'POSITIVE', location: 'New York, USA', thumbnail: 'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=400' },
-        { title: 'Quiet evening journaling', date: 'Apr 26', sentiment: 'NEUTRAL', location: 'New York, USA', thumbnail: 'https://images.unsplash.com/photo-1506784983877-45594efa4cbe?w=400' },
-        { title: 'Stressful day at work', date: 'Apr 25', sentiment: 'NEGATIVE', location: 'New York, USA', thumbnail: 'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=400' },
-        { title: 'Sunset by the river', date: 'Apr 24', sentiment: 'POSITIVE', location: 'New York, USA', thumbnail: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400' },
-        { title: 'Reflecting on the week', date: 'Apr 23', sentiment: 'NEUTRAL', location: 'New York, USA', thumbnail: 'https://images.unsplash.com/photo-1499209974431-9dddcece7f88?w=400' }
-    ];
+        const videos = data?.videos ?? [];
+        window._loadedVideos = videos;
+        const container = document.getElementById('video-feed');
 
-    if (mockEntries.length === 0) {
-        container.innerHTML = `
-            <div class="empty-state">
-                <h3>No entries yet</h3>
-                <p>Start your journey by creating your first journal entry.</p>
-                <button class="btn-primary" onclick="showPage('upload')" style="max-width:200px; margin-top:1rem;">Create Entry</button>
-            </div>
-        `;
-        return;
+        if (videos.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <h3>No entries yet</h3>
+                    <p>Start your journey by creating your first journal entry.</p>
+                    <button class="btn-primary" onclick="showPage('upload')" style="max-width:200px; margin-top:1rem;">Create Entry</button>
+                </div>
+            `;
+            return;
+        }
+
+        container.innerHTML = videos.map(video => {
+            const {
+                videoId    = '',
+                title      = 'Untitled',
+                desc       = '',
+                createdAt  = '',
+                s3Key      = '',
+                location   = '',
+                sentiment  = 'NEUTRAL',
+                transcript = '',
+            } = video;
+
+            const dateStr     = createdAt ? formatDate(createdAt) : '';
+            const locationStr = location?.trim() || '';
+            const videoUrl    = `${VIDEO_BUCKET_URL}/${s3Key}`;
+            const sentClass   = sentiment.toLowerCase();
+
+            return `
+                <div class="video-card" data-video-id="${videoId}">
+                    <video
+                        src="${videoUrl}"
+                        style="width:100%; height:160px; object-fit:cover; display:block; background:#111;"
+                        preload="metadata"
+                        playsinline
+                        onclick="showVideoDetail('${videoId}')"
+                    ></video>
+                    <div style="padding:12px;">
+                        <h4 style="margin-bottom:6px;">${escapeHtml(title)}</h4>
+                        <p style="font-size:12px; color:var(--muted); margin-bottom:8px;">
+                            ${dateStr}${dateStr && locationStr ? ' · ' : ''}${escapeHtml(locationStr)}
+                        </p>
+                        ${desc ? `<p style="font-size:13px; color:var(--muted); margin-bottom:8px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;">${escapeHtml(desc)}</p>` : ''}
+                        <span class="sentiment-badge sentiment-${sentClass}">${sentiment}</span>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+    } catch (error) {
+        console.error("err:", error);
     }
+}
 
-    container.innerHTML = mockEntries.map(entry => `
-        <div class="video-card">
-            <img src="${entry.thumbnail}" alt="${entry.title}" style="width:100%; height:160px; object-fit:cover; display:block;">
-            <div style="padding:12px;">
-                <h4 style="margin-bottom:6px;">${entry.title}</h4>
-                <p style="font-size:12px; color:var(--muted); margin-bottom:8px;">${entry.date} · ${entry.location}</p>
-                <span class="sentiment-badge sentiment-${entry.sentiment.toLowerCase()}">${entry.sentiment}</span>
-            </div>
-        </div>
-    `).join('');
+function formatDate(isoString) {
+    const d = new Date(isoString);
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+function escapeHtml(str) {
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
 }
 
 // --- Search ---
@@ -94,6 +136,11 @@ document.getElementById('uploadForm').onsubmit = async (e) => {
     e.preventDefault();
 
     const title       = document.getElementById('videoTitle').value.trim();
+    const description = document.getElementById('videoDesc').value.trim();
+    const location    = document.getElementById('videoLocation').value.trim();
+    const tags        = Array.from(document.querySelectorAll('#tag-pills .tag-pill'))
+                        .map(pill => pill.textContent.replace('×', '').trim());
+    
     const submitBtn   = e.target.querySelector('button[type="submit"]');
     const currentMode = document.getElementById('mode-record-btn').classList.contains('active') ? 'record' : 'upload';
     
@@ -124,14 +171,18 @@ document.getElementById('uploadForm').onsubmit = async (e) => {
 
         submitBtn.textContent = 'Saving...';
         await apiRequest('/videos', 'POST', {
-            title:   title,
-            s3Key:   s3Key,
-            fileSize: file.size,
-            mimeType: file.type
+            title:       title,
+            description: description,
+            location:    location,
+            tags:        tags,
+            s3Key:       s3Key,
+            fileSize:    file.size,
+            mimeType:    file.type
         });
 
         alert('Video uploaded successfully!');
         e.target.reset();
+        document.getElementById('tag-pills').innerHTML = '';
         showPage('home');
 
     } catch (err) {
@@ -145,7 +196,7 @@ document.getElementById('uploadForm').onsubmit = async (e) => {
 
 // --- Dashboard & Timeline ---
 let timelineChart = null;
-
+/*
 async function loadDashboard() {
     const mockData = [
         { date: 'Apr 22', score: 0.65, sentiment: 'POSITIVE' },
@@ -224,7 +275,7 @@ function loadRecentEntries() {
         </div>
     `).join('');
 }
-
+*/
 // Initial Load
 showPage('home');
 
