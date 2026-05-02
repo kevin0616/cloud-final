@@ -94,10 +94,13 @@ document.getElementById('uploadForm').onsubmit = async (e) => {
     e.preventDefault();
 
     const title       = document.getElementById('videoTitle').value.trim();
-    const file        = document.getElementById('videoFile').files[0];
     const submitBtn   = e.target.querySelector('button[type="submit"]');
-
-    if (!file) return alert('Please select a video file');
+    const currentMode = document.getElementById('mode-record-btn').classList.contains('active') ? 'record' : 'upload';
+    
+    const file = currentMode === 'record'
+        ? (recordedBlob ? new File([recordedBlob], 'recorded.webm', { type: 'video/webm' }) : null)
+        : document.getElementById('videoFile').files[0];
+    if (!file) return alert(currentMode === 'record' ? 'Please record a video first' : 'Please select a video file');
 
     submitBtn.disabled = true;
     submitBtn.textContent = 'Getting upload URL...';
