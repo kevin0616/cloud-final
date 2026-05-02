@@ -120,21 +120,34 @@ function showVideoPopup(video) {
     document.body.appendChild(overlay);
 
     // Load subtitle after popup is in DOM
-    if (video.subtitleUrl) {
-        const videoEl = document.getElementById('popup-video-player');
-        const track   = document.createElement('track');
-        track.src     = video.subtitleUrl;
-        track.kind    = 'subtitles';
-        track.srclang = 'en';
-        track.label   = 'English';
-        track.default = true;
-        videoEl.appendChild(track);
-        videoEl.addEventListener('loadedmetadata', () => {
-            if (videoEl.textTracks[0]) {
-                videoEl.textTracks[0].mode = 'showing';
+        if (video.subtitleUrl) {
+            const videoEl = document.getElementById('popup-video-player');
+    
+    // 等 video element ready 後再加 track
+            const addTrack = () => {
+        // 先移除舊的 track
+                Array.from(videoEl.querySelectorAll('track')).forEach(t => t.remove());
+        
+                const track   = document.createElement('track');
+                track.src     = video.subtitleUrl;
+                track.kind    = 'subtitles';
+                track.srclang = 'en';
+                track.label   = 'English';
+                track.default = true;
+                videoEl.appendChild(track);
+                
+                // 強制開啟字幕
+                track.addEventListener('load', () => {
+                    videoEl.textTracks[0].mode = 'showing';
+                });
+            };
+
+            if (videoEl.readyState >= 1) {
+                addTrack();
+            } else {
+                videoEl.addEventListener('loadedmetadata', addTrack, { once: true });
             }
-        });
-    }
+        }
 }
 
 // ── Load subtitle via presigned URL ──────────────────────
@@ -174,11 +187,13 @@ async function loadSubtitle(subtitleKey) {
     }
 }
 
-function showVideoDetail(videoId) {
-    const video = (window._loadedVideos || []).find(v => v.videoId === videoId);
+async function showVideoDetail(videoId) {
+    const data  = await apiRequest('/feed');
+    const video = (data.videos || []).find(v => v.videoId === videoId);
+    console.log(video.subtitleUrl)
     if (video) {
         showVideoPopup(video);
     } else {
-        console.warn('Video not found in cache:', videoId);
+        console.warn('Video not found:', videoId);
     }
 }
