@@ -1,7 +1,4 @@
-// ── Video Popup (shared across feed and dashboard) ──────
-
 function showVideoPopup(video) {
-    // Remove existing popup if any
     const existing = document.getElementById('video-popup-overlay');
     if (existing) existing.remove();
 
@@ -123,9 +120,7 @@ function showVideoPopup(video) {
         if (video.subtitleUrl) {
             const videoEl = document.getElementById('popup-video-player');
     
-    // 等 video element ready 後再加 track
             const addTrack = () => {
-        // 先移除舊的 track
                 Array.from(videoEl.querySelectorAll('track')).forEach(t => t.remove());
         
                 const track   = document.createElement('track');
@@ -136,7 +131,6 @@ function showVideoPopup(video) {
                 track.default = true;
                 videoEl.appendChild(track);
                 
-                // 強制開啟字幕
                 track.addEventListener('load', () => {
                     videoEl.textTracks[0].mode = 'showing';
                 });
@@ -148,43 +142,6 @@ function showVideoPopup(video) {
                 videoEl.addEventListener('loadedmetadata', addTrack, { once: true });
             }
         }
-}
-
-// ── Load subtitle via presigned URL ──────────────────────
-async function loadSubtitle(subtitleKey) {
-    const statusEl = document.getElementById('subtitle-status');
-    const videoEl  = document.getElementById('popup-video-player');
-    if (!videoEl) return;
-
-    try {
-        if (statusEl) statusEl.textContent = 'Loading subtitles...';
-
-        // Get presigned URL for the .vtt file from your API
-        const res = await apiRequest(`/subtitles/url?key=${encodeURIComponent(subtitleKey)}`);
-        const subtitleUrl = res.url;
-
-        // Add track element to video
-        const track = document.createElement('track');
-        track.src     = subtitleUrl;
-        track.kind    = 'subtitles';
-        track.srclang = 'en';
-        track.label   = 'English';
-        track.default = true;
-        videoEl.appendChild(track);
-
-        if (statusEl) statusEl.textContent = '';
-
-        // Enable subtitles
-        videoEl.addEventListener('loadedmetadata', () => {
-            if (videoEl.textTracks[0]) {
-                videoEl.textTracks[0].mode = 'showing';
-            }
-        });
-
-    } catch (e) {
-        console.warn('Subtitle load failed:', e);
-        if (statusEl) statusEl.textContent = '';
-    }
 }
 
 async function showVideoDetail(videoId) {

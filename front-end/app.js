@@ -1,11 +1,9 @@
-const API_BASE_URL      = "https://p4v9m8o862.execute-api.us-east-1.amazonaws.com/dev";
+const API_BASE_URL     = "https://p4v9m8o862.execute-api.us-east-1.amazonaws.com/dev";
 const VIDEO_BUCKET_URL = 'https://amzn-storage-bucket-final.s3.us-east-1.amazonaws.com';
-
+window._allVideos = [];
 // --- Auth Guard ---
 const ID_TOKEN = localStorage.getItem('id_token');
-if (!ID_TOKEN) {
-    window.location.href = 'auth.html';
-}
+if (!ID_TOKEN) window.location.href = 'auth.html';
 
 // --- Logout ---
 function logout() {
@@ -14,15 +12,14 @@ function logout() {
     window.location.href = 'auth.html';
 }
 
-// --- Page Navigation Logic ---
+// --- Page Navigation ---
 function showPage(pageId) {
     document.querySelectorAll('.page').forEach(p => p.style.display = 'none');
     document.getElementById(`${pageId}-page`).style.display = 'block';
-
-    if (pageId === 'home') loadFeed();
+    if (pageId === 'home')      loadFeed();
     if (pageId === 'dashboard') loadDashboard();
-    if (pageId === 'upload') detectLocation();
-    if (pageId === 'search') applyFilters();
+    if (pageId === 'upload')    detectLocation();
+    if (pageId === 'search')    applyFilters();
 }
 
 // --- API Helper ---
@@ -30,108 +27,172 @@ async function apiRequest(endpoint, method = 'GET', body = null) {
     const token = localStorage.getItem('id_token');
     const options = {
         method,
-        headers: {
-            'Authorization': token,
-            'Content-Type': 'application/json'
-        }
+        headers: { 'Authorization': token, 'Content-Type': 'application/json' }
     };
     if (body) options.body = JSON.stringify(body);
-
     const response = await fetch(`${API_BASE_URL}${endpoint}`, options);
-
     if (response.status === 401) {
         localStorage.removeItem('id_token');
         window.location.href = 'auth.html';
         return;
     }
-
     return response.json();
 }
 
-// --- Home Feed ---
+// ─────────────────────────────────────────
+// HOME FEED
+// ─────────────────────────────────────────
+/*
 async function loadFeed() {
+    const container = document.getElementById('video-feed');
+    container.innerHTML = '<p style="color:var(--muted);padding:1rem;">Loading...</p>';
     try {
-        const data = await apiRequest('/feed', 'GET');
-
+        const data = await apiRequest('/feed');
         const videos = data?.videos ?? [];
-        window._loadedVideos = videos;
-        const container = document.getElementById('video-feed');
+        window._allVideos = videos;  // cache for search page
 
         if (videos.length === 0) {
             container.innerHTML = `
                 <div class="empty-state">
                     <h3>No entries yet</h3>
                     <p>Start your journey by creating your first journal entry.</p>
-                    <button class="btn-primary" onclick="showPage('upload')" style="max-width:200px; margin-top:1rem;">Create Entry</button>
-                </div>
-            `;
+                    <button class="btn-primary" onclick="showPage('upload')"
+                        style="max-width:200px;margin-top:1rem;">Create Entry</button>
+                </div>`;
+            return;
+        }
+        container.innerHTML = videos.map(v => renderVideoCard(v)).join('');
+    } catch (err) {
+        console.error(err);
+        container.innerHTML = '<p style="color:var(--muted);">Error loading feed.</p>';
+    }
+}
+*/
+
+function handleSearch() {
+    showPage('search');
+}
+
+async function applyFilters() {
+    let videos = [];
+    
+    try {
+        if (window._allVideos && window._allVideos.length > 0) {
+            videos = window._allVideos;
+        } else {
+            const data = await apiRequest('/feed');
+            videos = data?.videos ?? [];
+            window._allVideos = videos;
+        }
+
+        const query    = (document.getElementById('globalSearch')?.value ?? '').toLowerCase().trim();
+        const location = (document.getElementById('filter-location')?.value ?? '').toLowerCase().trim();
+        const dateFrom = document.getElementById('filter-date-from')?.value ?? '';
+        const dateTo   = document.getElementById('filter-date-to')?.value ?? '';
+        const selected = Array.from(
+            document.querySelectorAll('.search-filters input[type="checkbox"]:checked')
+        ).map(c => c.value);
+
+        const results = videos.filter(v => {
+            const title      = (v.title ?? '').toLowerCase();
+            const transcript = (v.transcript ?? '').toLowerCase();
+            const loc        = (v.location ?? '').toLowerCase();
+            const date       = (v.createdAt ?? '').slice(0, 10);
+            const sentiment  = (v.sentiment ?? '').toUpperCase();
+            const tags       = Array.isArray(v.tags) ? v.tags : [];
+
+            if (query && !title.includes(query) && !transcript.includes(query) && !tags.some(tag => String(tag).toLowerCase().includes(query))) return false;
+            if (selected.length > 0 && !selected.includes(sentiment)) return false;
+            if (location && !loc.includes(location)) return false;
+            if (dateFrom && date < dateFrom) return false;
+            if (dateTo && date > dateTo) return false;
+            return true;
+        });
+
+        const summary   = document.getElementById('search-summary');
+        const container = document.getElementById('search-results');
+        if (!summary || !container) return;
+
+        summary.textContent = results.length === videos.length
+            ? `${results.length} ${results.length === 1 ? 'entry' : 'entries'}`
+            : `${results.length} of ${videos.length} entries`;
+
+        if (results.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <h3>Nothing found</h3>
+                    <p>Try adjusting your filters or search terms.</p>
+                </div>`;
             return;
         }
 
-        container.innerHTML = videos.map(video => {
-            const {
-                videoId    = '',
-                title      = 'Untitled',
-                desc       = '',
-                createdAt  = '',
-                s3Key      = '',
-                location   = '',
-                sentiment  = 'NEUTRAL',
-                transcript = '',
-            } = video;
-
-            const dateStr     = createdAt ? formatDate(createdAt) : '';
-            const locationStr = location?.trim() || '';
-            const videoUrl    = `${VIDEO_BUCKET_URL}/${s3Key}`;
-            const sentClass   = sentiment.toLowerCase();
-
-            return `
-                <div class="video-card" data-video-id="${videoId}">
-                    <video
-                        src="${videoUrl}"
-                        style="width:100%; height:160px; object-fit:cover; display:block; background:#111;"
-                        preload="metadata"
-                        playsinline
-                        onclick="showVideoDetail('${videoId}')"
-                    ></video>
-                    <div style="padding:12px;">
-                        <h4 style="margin-bottom:6px;">${escapeHtml(title)}</h4>
-                        <p style="font-size:12px; color:var(--muted); margin-bottom:8px;">
-                            ${dateStr}${dateStr && locationStr ? ' · ' : ''}${escapeHtml(locationStr)}
-                        </p>
-                        ${desc ? `<p style="font-size:13px; color:var(--muted); margin-bottom:8px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;">${escapeHtml(desc)}</p>` : ''}
-                        <span class="sentiment-badge sentiment-${sentClass}">${sentiment}</span>
-                    </div>
-                </div>
-            `;
-        }).join('');
-
-    } catch (error) {
-        console.error("err:", error);
+        container.innerHTML = results.map(v => renderVideoCard(v)).join('');
+            
+    } catch (err) {
+        console.error(err);
     }
 }
 
-function formatDate(isoString) {
-    const d = new Date(isoString);
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-}
-
-function escapeHtml(str) {
-    return String(str)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
-}
-
-// --- Search ---
-function handleSearch() {
-    showPage('search');
+function resetFilters() {
+    document.querySelectorAll('.search-filters input[type="checkbox"]').forEach(c => c.checked = false);
+    const loc  = document.getElementById('filter-location');
+    const from = document.getElementById('filter-date-from');
+    const to   = document.getElementById('filter-date-to');
+    if (loc)  loc.value  = '';
+    if (from) from.value = '';
+    if (to)   to.value   = '';
+    document.getElementById('globalSearch').value = '';
     applyFilters();
 }
 
-// --- Upload ---
+// ─────────────────────────────────────────
+// SHARED CARD RENDERER
+// ─────────────────────────────────────────
+
+function renderVideoCard(v) {
+    const { videoId = '', title = 'Untitled', desc = '', createdAt = '',
+            s3Key = '', location = '', sentiment = 'NEUTRAL' } = v;
+    const dateStr     = createdAt ? formatDate(createdAt) : '';
+    const locationStr = (location ?? '').trim();
+    const videoUrl    = `${VIDEO_BUCKET_URL}/${s3Key}`;
+    const sentClass   = sentiment.toLowerCase();
+    const tags       = (v.tags || []).slice(0, 4);
+    const keyPhrases = (v.keyPhrases || []).slice(0, 4).map(k => k.text || k);
+    const phrases    = [...tags, ...keyPhrases].slice(0, 6);
+
+    return `
+        <div class="video-card" data-video-id="${videoId}">
+            <video
+                src="${videoUrl}"
+                style="width:100%; height:160px; object-fit:cover; display:block; background:#111;"
+                preload="metadata"
+                playsinline
+                onclick="showVideoDetail('${videoId}')"
+            ></video>
+            <div style="padding:12px;">
+                <h4 style="margin-bottom:6px;">${escapeHtml(title)}</h4>
+                <p style="font-size:12px; color:var(--muted); margin-bottom:8px;">
+                    ${dateStr}${dateStr && locationStr ? ' · ' : ''}${escapeHtml(locationStr)}
+                </p>
+                ${desc ? `<p style="font-size:13px; color:var(--muted); margin-bottom:8px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;">${escapeHtml(desc)}</p>` : ''}
+                <div style="margin-top:1rem;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+                    <span class="sentiment-badge sentiment-${sentClass}">${sentiment}</span>
+                    ${phrases.map(p => `
+                        <span style="font-size:12px;padding:4px 10px;border-radius:20px;
+                            background:rgba(255,255,255,0.05);color:var(--muted);
+                            border:0.5px solid var(--border);">
+                            ${p}
+                        </span>
+                    `).join('')}
+                </div>
+            </div>
+        </div>`;
+}
+
+// ─────────────────────────────────────────
+// UPLOAD
+// ─────────────────────────────────────────
+
 document.getElementById('uploadForm').onsubmit = async (e) => {
     e.preventDefault();
 
@@ -139,25 +200,22 @@ document.getElementById('uploadForm').onsubmit = async (e) => {
     const description = document.getElementById('videoDesc').value.trim();
     const location    = document.getElementById('videoLocation').value.trim();
     const tags        = Array.from(document.querySelectorAll('#tag-pills .tag-pill'))
-                        .map(pill => pill.textContent.replace('×', '').trim());
-    
+                            .map(pill => pill.textContent.replace('×', '').trim());
     const submitBtn   = e.target.querySelector('button[type="submit"]');
-    const currentMode = document.getElementById('mode-record-btn').classList.contains('active') ? 'record' : 'upload';
-    
-    const file = currentMode === 'record'
+    const isRecord    = document.getElementById('mode-record-btn').classList.contains('active');
+    const file        = isRecord
         ? (recordedBlob ? new File([recordedBlob], 'recorded.webm', { type: 'video/webm' }) : null)
         : document.getElementById('videoFile').files[0];
-    if (!file) return alert(currentMode === 'record' ? 'Please record a video first' : 'Please select a video file');
+
+    if (!file) return alert(isRecord ? 'Please record a video first' : 'Please select a video file');
 
     submitBtn.disabled = true;
     submitBtn.textContent = 'Getting upload URL...';
 
     try {
         const presignRes = await apiRequest('/videos/upload-url', 'POST', {
-            fileName:    file.name,
-            contentType: file.type || 'video/mp4'
+            fileName: file.name, contentType: file.type || 'video/mp4'
         });
-
         const { uploadUrl, s3Key } = presignRes;
 
         submitBtn.textContent = 'Uploading video...';
@@ -166,25 +224,19 @@ document.getElementById('uploadForm').onsubmit = async (e) => {
             headers: { 'Content-Type': file.type || 'video/mp4' },
             body: file
         });
-
         if (!uploadRes.ok) throw new Error('S3 upload failed');
 
         submitBtn.textContent = 'Saving...';
         await apiRequest('/videos', 'POST', {
-            title:       title,
-            description: description,
-            location:    location,
-            tags:        tags,
-            s3Key:       s3Key,
-            fileSize:    file.size,
-            mimeType:    file.type
+            title, description, location, tags, s3Key,
+            fileSize: file.size, mimeType: file.type
         });
 
         alert('Video uploaded successfully!');
         e.target.reset();
         document.getElementById('tag-pills').innerHTML = '';
-        showPage('home');
-
+        currentTags = [];
+        showPage('search');
     } catch (err) {
         console.error(err);
         alert('Upload failed: ' + err.message);
@@ -194,179 +246,68 @@ document.getElementById('uploadForm').onsubmit = async (e) => {
     submitBtn.textContent = 'Publish to Feed';
 };
 
-// --- Dashboard & Timeline ---
-let timelineChart = null;
-/*
-async function loadDashboard() {
-    const mockData = [
-        { date: 'Apr 22', score: 0.65, sentiment: 'POSITIVE' },
-        { date: 'Apr 23', score: 0.42, sentiment: 'NEUTRAL' },
-        { date: 'Apr 24', score: 0.78, sentiment: 'POSITIVE' },
-        { date: 'Apr 25', score: 0.31, sentiment: 'NEGATIVE' },
-        { date: 'Apr 26', score: 0.55, sentiment: 'NEUTRAL' },
-        { date: 'Apr 27', score: 0.82, sentiment: 'POSITIVE' },
-        { date: 'Apr 28', score: 0.71, sentiment: 'POSITIVE' }
-    ];
+// ─────────────────────────────────────────
+// UPLOAD PAGE: MODE, TAGS, CAMERA, LOCATION
+// ─────────────────────────────────────────
 
-    const ctx = document.getElementById('timelineCanvas').getContext('2d');
-
-    if (timelineChart) timelineChart.destroy();
-
-    timelineChart = new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: mockData.map(d => d.date),
-            datasets: [{
-                label: 'Sentiment Score',
-                data: mockData.map(d => d.score),
-                borderColor: '#c9a96e',
-                backgroundColor: 'rgba(201, 169, 110, 0.1)',
-                tension: 0.4,
-                fill: true,
-                pointBackgroundColor: '#c9a96e',
-                pointRadius: 5,
-                pointHoverRadius: 7
-            }]
-        },
-        options: {
-            responsive: true,
-            plugins: {
-                legend: { display: false },
-                tooltip: {
-                    callbacks: {
-                        label: (ctx) => `Score: ${ctx.parsed.y} (${mockData[ctx.dataIndex].sentiment})`
-                    }
-                }
-            },
-            scales: {
-                y: {
-                    min: 0,
-                    max: 1,
-                    grid: { color: 'rgba(255,255,255,0.05)' },
-                    ticks: { color: '#888580' }
-                },
-                x: {
-                    grid: { color: 'rgba(255,255,255,0.05)' },
-                    ticks: { color: '#888580' }
-                }
-            }
-        }
-    });
-
-    loadRecentEntries();
-}
-
-function loadRecentEntries() {
-    const mockEntries = [
-        { title: 'Morning walk in Central Park', date: 'Apr 28', sentiment: 'POSITIVE', location: 'New York, USA' },
-        { title: 'Coffee at the rooftop', date: 'Apr 27', sentiment: 'POSITIVE', location: 'New York, USA' },
-        { title: 'Quiet evening journaling', date: 'Apr 26', sentiment: 'NEUTRAL', location: 'New York, USA' },
-        { title: 'Stressful day at work', date: 'Apr 25', sentiment: 'NEGATIVE', location: 'New York, USA' }
-    ];
-
-    const container = document.getElementById('recent-entries');
-    container.innerHTML = mockEntries.map(entry => `
-        <div class="entry-item">
-            <div>
-                <div class="entry-title">${entry.title}</div>
-                <div class="entry-meta">${entry.date} · ${entry.location}</div>
-            </div>
-            <span class="sentiment-badge sentiment-${entry.sentiment.toLowerCase()}">${entry.sentiment}</span>
-        </div>
-    `).join('');
-}
-*/
-// Initial Load
-showPage('home');
-
-
-// --- Upload Page: Mode Toggle ---
 function setMode(mode) {
-    document.getElementById('upload-section').style.display = mode === 'upload' ? 'block' : 'none';
-    document.getElementById('record-section').style.display = mode === 'record' ? 'block' : 'none';
+    document.getElementById('upload-section').style.display  = mode === 'upload' ? 'block' : 'none';
+    document.getElementById('record-section').style.display  = mode === 'record' ? 'block' : 'none';
     document.getElementById('mode-upload-btn').classList.toggle('active', mode === 'upload');
     document.getElementById('mode-record-btn').classList.toggle('active', mode === 'record');
-
-    if (mode === 'record') {
-        startCamera();
-    } else {
-        stopCamera();
-    }
+    mode === 'record' ? startCamera() : stopCamera();
 }
 
-// --- Upload Page: Tags ---
 let currentTags = [];
 
 function handleTagAdd(e) {
     if ((e.key === 'Enter' || e.key === ',') && e.target.value.trim()) {
         e.preventDefault();
-        const newTag = e.target.value.replace(/,$/, '').trim();
-        if (newTag && !currentTags.includes(newTag) && currentTags.length < 6) {
-            currentTags.push(newTag);
+        const tag = e.target.value.replace(/,$/, '').trim();
+        if (tag && !currentTags.includes(tag) && currentTags.length < 6) {
+            currentTags.push(tag);
             e.target.value = '';
             renderTags();
         }
     }
 }
 
-function removeTag(index) {
-    currentTags.splice(index, 1);
-    renderTags();
-}
+function removeTag(i) { currentTags.splice(i, 1); renderTags(); }
 
 function renderTags() {
-    const container = document.getElementById('tag-pills');
-    container.innerHTML = currentTags.map((tag, i) => `
-        <span class="tag-pill" onclick="removeTag(${i})">${tag} ×</span>
-    `).join('');
+    document.getElementById('tag-pills').innerHTML = currentTags.map((tag, i) =>
+        `<span class="tag-pill" onclick="removeTag(${i})">${tag} ×</span>`
+    ).join('');
 }
 
-// --- Upload Page: Camera Recording ---
-let mediaRecorder;
-let recordedChunks = [];
-let recordedBlob = null;
-let recordingStream = null;
-let recordingTimer = null;
-let recordingSeconds = 0;
+let mediaRecorder, recordedChunks = [], recordedBlob = null,
+    recordingStream = null, recordingTimer = null, recordingSeconds = 0;
 
 async function startCamera() {
     try {
         recordingStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
         document.getElementById('preview').srcObject = recordingStream;
-    } catch (err) {
-        alert('Could not access camera. Please grant camera permission.');
-        console.error(err);
-    }
+    } catch (err) { alert('Could not access camera. Please grant camera permission.'); }
 }
 
 function stopCamera() {
-    if (recordingStream) {
-        recordingStream.getTracks().forEach(track => track.stop());
-        recordingStream = null;
-    }
+    if (recordingStream) { recordingStream.getTracks().forEach(t => t.stop()); recordingStream = null; }
 }
 
 async function toggleRecording() {
     const btn = document.getElementById('record-btn');
-
     if (!mediaRecorder || mediaRecorder.state === 'inactive') {
         if (!recordingStream) await startCamera();
         if (!recordingStream) return;
-
         recordedChunks = [];
         mediaRecorder = new MediaRecorder(recordingStream);
-
-        mediaRecorder.ondataavailable = (e) => {
-            if (e.data.size > 0) recordedChunks.push(e.data);
-        };
-
+        mediaRecorder.ondataavailable = e => { if (e.data.size > 0) recordedChunks.push(e.data); };
         mediaRecorder.onstop = () => {
             recordedBlob = new Blob(recordedChunks, { type: 'video/webm' });
-            const playback = document.getElementById('recorded-playback');
-            playback.src = URL.createObjectURL(recordedBlob);
-            playback.style.display = 'block';
+            const pb = document.getElementById('recorded-playback');
+            pb.src = URL.createObjectURL(recordedBlob);
+            pb.style.display = 'block';
         };
-
         mediaRecorder.start();
         recordingSeconds = 0;
         document.getElementById('record-timer').textContent = '00:00';
@@ -376,7 +317,6 @@ async function toggleRecording() {
             const s = String(recordingSeconds % 60).padStart(2, '0');
             document.getElementById('record-timer').textContent = `${m}:${s}`;
         }, 1000);
-
         btn.textContent = 'Stop Recording';
         btn.classList.add('active');
     } else {
@@ -387,105 +327,34 @@ async function toggleRecording() {
     }
 }
 
-// --- Upload Page: Location ---
 function detectLocation() {
     const input = document.getElementById('videoLocation');
-
-    if (!navigator.geolocation) {
-        input.placeholder = 'Geolocation not supported';
-        return;
-    }
-
+    if (!navigator.geolocation) { input.placeholder = 'Geolocation not supported'; return; }
     input.placeholder = 'Detecting location...';
     input.value = '';
-
-    navigator.geolocation.getCurrentPosition(
-        async (position) => {
-            const { latitude, longitude } = position.coords;
-            try {
-                const response = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`);
-                const data = await response.json();
-                const city = data.address.city || data.address.town || data.address.village || '';
-                const country = data.address.country || '';
-                input.value = city && country ? `${city}, ${country}` : data.display_name;
-            } catch (err) {
-                input.value = `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
-            }
-        },
-        (err) => {
-            input.placeholder = 'Location permission denied';
-            console.error(err);
-        }
-    );
+    navigator.geolocation.getCurrentPosition(async pos => {
+        try {
+            const res  = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&format=json`);
+            const data = await res.json();
+            const city    = data.address.city || data.address.town || data.address.village || '';
+            const country = data.address.country || '';
+            input.value = city && country ? `${city}, ${country}` : data.display_name;
+        } catch { input.value = `${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}`; }
+    }, () => { input.placeholder = 'Location permission denied'; });
 }
 
-// --- Search Page ---
-const searchEntries = [
-    { title: 'Morning walk in Central Park', date: '2026-04-28', sentiment: 'POSITIVE', location: 'New York, USA', thumbnail: 'https://images.unsplash.com/photo-1568515387631-8b650bbcdb90?w=400' },
-    { title: 'Coffee at the rooftop', date: '2026-04-27', sentiment: 'POSITIVE', location: 'New York, USA', thumbnail: 'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=400' },
-    { title: 'Quiet evening journaling', date: '2026-04-26', sentiment: 'NEUTRAL', location: 'New York, USA', thumbnail: 'https://images.unsplash.com/photo-1506784983877-45594efa4cbe?w=400' },
-    { title: 'Stressful day at work', date: '2026-04-25', sentiment: 'NEGATIVE', location: 'New York, USA', thumbnail: 'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=400' },
-    { title: 'Sunset in Tokyo', date: '2026-04-15', sentiment: 'POSITIVE', location: 'Tokyo, Japan', thumbnail: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400' },
-    { title: 'Lost in Shibuya', date: '2026-04-14', sentiment: 'NEUTRAL', location: 'Tokyo, Japan', thumbnail: 'https://images.unsplash.com/photo-1499209974431-9dddcece7f88?w=400' }
-];
+// ─────────────────────────────────────────
+// UTILS
+// ─────────────────────────────────────────
 
-function applyFilters() {
-    const query = document.getElementById('globalSearch').value.toLowerCase().trim();
-    const selectedEmotions = Array.from(document.querySelectorAll('.search-filters input[type="checkbox"]:checked')).map(c => c.value);
-    const locationFilter = document.getElementById('filter-location').value.toLowerCase().trim();
-    const dateFrom = document.getElementById('filter-date-from').value;
-    const dateTo = document.getElementById('filter-date-to').value;
-
-    let results = searchEntries.filter(entry => {
-        if (query && !entry.title.toLowerCase().includes(query)) return false;
-        if (selectedEmotions.length > 0 && !selectedEmotions.includes(entry.sentiment)) return false;
-        if (locationFilter && !entry.location.toLowerCase().includes(locationFilter)) return false;
-        if (dateFrom && entry.date < dateFrom) return false;
-        if (dateTo && entry.date > dateTo) return false;
-        return true;
-    });
-
-    renderSearchResults(results);
+function formatDate(iso) {
+    return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-function renderSearchResults(results) {
-    const container = document.getElementById('search-results');
-    const summary = document.getElementById('search-summary');
-
-    if (results.length === 0) {
-        summary.textContent = 'No entries match your filters';
-        container.innerHTML = `
-            <div class="empty-state">
-                <h3>Nothing found</h3>
-                <p>Try adjusting your filters or search terms.</p>
-            </div>
-        `;
-        return;
-    }
-
-    summary.textContent = `Showing ${results.length} ${results.length === 1 ? 'entry' : 'entries'}`;
-    container.innerHTML = results.map(entry => `
-        <div class="video-card">
-            <img src="${entry.thumbnail}" alt="${entry.title}" style="width:100%; height:160px; object-fit:cover; display:block;">
-            <div style="padding:12px;">
-                <h4 style="margin-bottom:6px;">${entry.title}</h4>
-                <p style="font-size:12px; color:var(--muted); margin-bottom:8px;">${formatDate(entry.date)} · ${entry.location}</p>
-                <span class="sentiment-badge sentiment-${entry.sentiment.toLowerCase()}">${entry.sentiment}</span>
-            </div>
-        </div>
-    `).join('');
+function escapeHtml(str) {
+    return String(str)
+        .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+        .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
-function formatDate(isoDate) {
-    const d = new Date(isoDate);
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-}
-
-function resetFilters() {
-    document.querySelectorAll('.search-filters input[type="checkbox"]').forEach(c => c.checked = false);
-    document.getElementById('filter-location').value = '';
-    document.getElementById('filter-date-from').value = '';
-    document.getElementById('filter-date-to').value = '';
-    document.getElementById('globalSearch').value = '';
-    applyFilters();
-}
+showPage('search');
