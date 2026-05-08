@@ -641,6 +641,12 @@ canvas {
   border: 0.5px solid var(--accent);
 }
 
+.sentiment-processing {
+  background: var(--accent-dim);
+  color: var(--accent);
+  border: 0.5px solid var(--accent);
+}
+
 .sentiment-negative {
   background: var(--danger-dim);
   color: var(--danger);

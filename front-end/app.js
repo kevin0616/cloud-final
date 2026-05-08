@@ -151,7 +151,7 @@ function resetFilters() {
 
 function renderVideoCard(v) {
     const { videoId = '', title = 'Untitled', desc = '', createdAt = '',
-            s3Key = '', location = '', sentiment = 'NEUTRAL' } = v;
+            s3Key = '', location = '', sentiment = 'PROCESSING' } = v;
     const dateStr     = createdAt ? formatDate(createdAt) : '';
     const locationStr = (location ?? '').trim();
     const videoUrl    = `${VIDEO_BUCKET_URL}/${s3Key}`;
